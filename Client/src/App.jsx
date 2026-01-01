@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
+import Swal from "sweetalert2";
 import Square from "./square/Square.jsx";
 import io from "socket.io-client";
 
@@ -16,6 +17,7 @@ const App = () => {
   const [finishedArrayState, setFinishedArrayState] = useState([]);
   const [playOnline, setPlayOnline] = useState(false);
   const [socket, setSocket] = useState(null);
+  const [ playerName, setPlayerName] = useState("");
 
   const checkWineer = () => {
     // Row Dynamic
@@ -72,10 +74,42 @@ const App = () => {
     }
   }, [gameState]);
 
-  function playOnlineClick() {
+  const takePlayerName = async () => {
+    const result = await Swal.fire({
+      title: "Enter your Name",
+      input: "text",
+      inputPlaceholder: "John Doe",
+      showCancelButton: true,
+      inputValidator: (value) => {
+        if (!value) {
+          return "You need to write something!"; 
+        }
+      }
+    });
+    return result;
+  };
+
+  socket?.on("connect", function () {
+    setPlayOnline(true);
+  });
+
+  async function playOnlineClick() {
+
+
+    const result = await takePlayerName();
+    console.log(result);
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    const username = result.value;
+    setPlayOnline(username);
+
     const newSocket = io("http://localhost:3000", {
       autoConnect: true,
     });
+    
     setSocket(newSocket);
   }
 
