@@ -46,14 +46,21 @@ const crossSvg = (
 const square = ({
   id,
   setGameState,
+  gameState,
+  currentElement,
   currentPlayer,
   setCurrentPlayer,
   finishedState,
   finishedArrayState,
+  socket,
+  playingAs,
 }) => {
   const [icon, setIcon] = useState(null);
 
   const clickOnSquare = () => {
+
+    if ( playingAs !== currentPlayer ) return;
+
     if (finishedState) return;
 
     if (!icon) {
@@ -65,7 +72,15 @@ const square = ({
 
       const myCurrentPlayer = currentPlayer;
 
+      socket.emit("playerMoveFromClient", {
+        state: {
+          id,
+          sign: myCurrentPlayer,
+        },
+      });
+
       setCurrentPlayer(currentPlayer === "circle" ? "cross" : "circle");
+
       setGameState((prevState) => {
         let newState = [...prevState];
         const rowIndex = Math.floor(id / 3);
@@ -77,8 +92,17 @@ const square = ({
   };
 
   return (
-    <div onClick={clickOnSquare} className={`square ${ finishedState ? 'not-allowed' : '' } ${ finishedArrayState.includes( id ) ? finishedState + '-won' : '' }`}>
-      {icon}
+    <div
+      onClick={clickOnSquare}
+      className={`square ${finishedState ? "not-allowed" : ""} ${
+        currentPlayer !== playingAs ? "not-allowed" : ""
+      } ${finishedArrayState.includes(id) ? finishedState + "-won" : ""}`}
+    >
+      {currentElement === "circle"
+        ? circleSvg
+        : currentElement === "cross"
+        ? crossSvg
+        : icon}
     </div>
   );
 };

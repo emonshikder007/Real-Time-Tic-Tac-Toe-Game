@@ -17,7 +17,9 @@ const App = () => {
   const [finishedArrayState, setFinishedArrayState] = useState([]);
   const [playOnline, setPlayOnline] = useState(false);
   const [socket, setSocket] = useState(null);
-  const [ playerName, setPlayerName] = useState("");
+  const [playerName, setPlayerName] = useState("");
+  const [opponentName, setOpponentName] = useState(null);
+  const [playingAs, setPlayingAs] = useState(null);
 
   const checkWineer = () => {
     // Row Dynamic
@@ -82,34 +84,67 @@ const App = () => {
       showCancelButton: true,
       inputValidator: (value) => {
         if (!value) {
-          return "You need to write something!"; 
+          return "You need to write something!";
         }
-      }
+      },
     });
     return result;
   };
 
-  socket?.on("connect", function () {
-    setPlayOnline(true);
-  });
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("connect", () => {
+      setPlayOnline(true);
+    });
+
+    socket.on("OpponentNotFound", () => {
+      setOpponentName(false);
+    });
+
+    socket.on("OpponentFound", (data) => {
+      setPlayingAs(data.playingAs);
+      setOpponentName(data.opponentName);
+    });
+
+    socket.on("playerMoveFromServer", (data) => {
+      const { id, sign } = data.state;
+
+      setGameState((prev) => {
+        const newState = prev.map((row) => [...row]);
+        newState[Math.floor(id / 3)][id % 3] = sign;
+        return newState;
+      });
+
+      setCurrentPlayer(sign === "circle" ? "cross" : "circle");
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("OpponentNotFound");
+      socket.off("OpponentFound");
+      socket.off("playerMoveFromServer");
+    };
+  }, [socket]);
 
   async function playOnlineClick() {
-
-
     const result = await takePlayerName();
-    console.log(result);
 
     if (!result.isConfirmed) {
       return;
     }
 
     const username = result.value;
-    setPlayOnline(username);
+    setPlayerName(username);
 
-    const newSocket = io("http://localhost:3000", {
+    const newSocket = io("http://localhost:4000", {
       autoConnect: true,
     });
-    
+
+    newSocket?.emit("request_to_play", {
+      playerName: username,
+    });
+
     setSocket(newSocket);
   }
 
@@ -123,11 +158,37 @@ const App = () => {
     );
   }
 
+  if (playOnline && !opponentName) {
+    return (
+      <div className="waiting">
+        <p>Waiting For Opponent...</p>
+      </div>
+    );
+  }
+
+  let winnerName = "";
+
+  if (finishedState && finishedState !== "Draw") {
+    winnerName = finishedState === playingAs ? playerName : opponentName;
+  }
+
   return (
     <div className="main-div">
       <div className="move-detection">
-        <div className="left">You</div>
-        <div className="right">Opponent</div>
+        <div
+          className={`left ${
+            currentPlayer === playingAs ? "current-move-" + currentPlayer : ""
+          }`}
+        >
+          {playerName}
+        </div>
+        <div
+          className={`right ${
+            currentPlayer !== playingAs ? "current-move-" + currentPlayer : ""
+          }`}
+        >
+          {opponentName}
+        </div>
       </div>
       <div>
         <h1 className="water-background game-heading"> Tic Tac Toe</h1>
@@ -136,25 +197,34 @@ const App = () => {
             arr.map((e, colIndex) => {
               return (
                 <Square
+                  socket={socket}
                   setGameState={setGameState}
+                  gameState={gameState}
                   currentPlayer={currentPlayer}
                   setCurrentPlayer={setCurrentPlayer}
                   finishedState={finishedState}
                   finishedArrayState={finishedArrayState}
                   id={rowIndex * 3 + colIndex}
                   key={rowIndex * 3 + colIndex}
+                  currentElement={e}
+                  playingAs={playingAs}
                 />
               );
             })
           )}
         </div>
         {finishedState && finishedState !== "Draw" && (
-          <h3 className="finished-state">{finishedState} Won The Game</h3>
+          <h3 className="finished-state">{winnerName} won the game</h3>
         )}
         {finishedState && finishedState === "Draw" && (
           <h3 className="finished-state">It's a Draw</h3>
         )}
       </div>
+      {!finishedState && opponentName && (
+        <h3 className="finished-state">
+          You are playing against {opponentName}
+        </h3>
+      )}
     </div>
   );
 };
